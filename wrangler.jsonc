@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hacksv-dashboard",
+  "account_id": "3d3da26ef3b03d928bc5c29805655f9a",
+  "compatibility_date": "2026-07-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./worker/index.ts",
+  // Reserve these two path prefixes on the hack.sv zone. Everything the app
+  // needs (SPA pages, built assets, and the API) lives under them.
+  //
+  // Trailing-wildcard patterns are REQUIRED: Cloudflare route matching includes
+  // the query string, and `?` is not allowed in patterns — so "hack.sv/auth"
+  // would NOT match "/auth?email=…" (it would fall through to the apex site).
+  // Note this also captures /auth* and /dashboard* prefixes (e.g. /authors),
+  // so the apex site must not use those prefixes for its own pages.
+  "routes": [
+    { "pattern": "hack.sv/auth*", "zone_name": "hack.sv" },
+    { "pattern": "hack.sv/dashboard*", "zone_name": "hack.sv" }
+  ],
+  "assets": {
+    // Serve the built React SPA. Anything that isn't a real asset falls back
+    // to index.html (client-side routing), EXCEPT the auth endpoints below,
+    // which always hit the Worker first. The /auth login page and everything
+    // else fall through to the SPA. Assets are based under /dashboard/.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/auth/session",
+      "/auth/google",
+      "/auth/callback",
+      "/auth/magic/*",
+      "/auth/verify-email",
+      "/auth/verify-resend",
+      "/auth/logout"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hack-sv-dashboard",
+      "database_id": "fbb87c66-6036-42d3-9406-a27c9942f99f",
+      // Use the real remote D1 in `vite dev` too, instead of an empty local
+      // database.
+      "experimental_remote": true
+    }
+  ]
+}
