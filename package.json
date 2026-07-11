@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/nest-assets.mjs",
     "lint": "oxlint",
+    "seed:local": "wrangler d1 execute hack-sv-dashboard --local --file scripts/seed-local.sql",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy -c dist/hacksv_dashboard/wrangler.json"
   },
