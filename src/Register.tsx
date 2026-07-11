@@ -1,11 +1,26 @@
 import { useMemo, useState } from 'react'
 import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
-import { User, Calendar, AtSign, Clock, Utensils, PenLine, Loader2, Check, X } from 'lucide-react'
+import { Clock, Loader2, Check, X } from 'lucide-react'
 import { API_BASE } from './api'
 import { useSession, type Connection } from './session'
+import { DateField } from './DateField'
+import { PronounsField } from './PronounsField'
 import './register.css'
 
 const FREEFORM_MAX = 2000
+
+// Provisional pronoun "standardization": expand the common short forms to their
+// full set so returning users see something complete, and let them edit if it's
+// wrong. A proper standardized picker comes later (reusing DateField's pattern).
+const PRONOUN_EXPANSIONS: Record<string, string> = {
+  'he/him': 'he/him/his',
+  'she/her': 'she/her/hers',
+  'they/them': 'they/them/theirs',
+}
+function expandPronouns(p?: string | null): string {
+  if (!p) return ''
+  return PRONOUN_EXPANSIONS[p.trim().toLowerCase()] ?? p
+}
 
 // GitHub mark — this lucide fork dropped brand icons, so inline the octocat.
 function GithubMark({ size = 20 }: { size?: number }) {
@@ -52,64 +67,18 @@ export default function Register() {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — personal info (reuse or edit)
+// Step 1 — personal info. Returning users land straight on the prefilled form
+// (no separate confirmation screen): just Continue if it's right, edit if not.
 // ---------------------------------------------------------------------------
 
 function PersonalStep() {
-  const { profile, currentEvent, refresh } = useSession()
+  const { profile, refresh } = useSession()
   const navigate = useNavigate()
-
   const hasInfo = !!(profile?.legal_name || profile?.preferred_name)
-  // Returning users see a preview first; new users go straight to the form.
-  const [editing, setEditing] = useState(!hasInfo)
 
-  if (!editing && hasInfo) {
-    return (
-      <div className="reg-card">
-        <h1 className="reg-title">Welcome back</h1>
-        <p className="hint">Reuse your info from last time for {currentEvent?.name ?? 'this event'}?</p>
-        <div className="reg-review">
-          <ReviewRow icon={<User size={18} />} value={profile?.preferred_name || profile?.legal_name} />
-          {profile?.legal_name && profile?.preferred_name ? (
-            <ReviewRow icon={<User size={18} />} value={`Legal: ${profile.legal_name}`} />
-          ) : null}
-          <ReviewRow icon={<AtSign size={18} />} value={profile?.pronouns} />
-          <ReviewRow icon={<Calendar size={18} />} value={profile?.dob} />
-        </div>
-        <button className="reg-btn" onClick={() => navigate('application')}>
-          Use this info
-          <Arrow />
-        </button>
-        <p className="hint">
-          <button type="button" className="hint-link" onClick={() => setEditing(true)}>
-            edit instead
-          </button>
-        </p>
-      </div>
-    )
-  }
-
-  return <PersonalForm hasInfo={hasInfo} onDone={async () => {
-    await refresh()
-    navigate('application')
-  }} />
-}
-
-function ReviewRow({ icon, value }: { icon: React.ReactNode; value?: string | null }) {
-  if (!value) return null
-  return (
-    <div className="reg-review-row">
-      <span className="reg-review-icon">{icon}</span>
-      <span>{value}</span>
-    </div>
-  )
-}
-
-function PersonalForm({ hasInfo, onDone }: { hasInfo: boolean; onDone: () => Promise<void> }) {
-  const { profile } = useSession()
   const [legalName, setLegalName] = useState(profile?.legal_name ?? '')
   const [preferredName, setPreferredName] = useState(profile?.preferred_name ?? '')
-  const [pronouns, setPronouns] = useState(profile?.pronouns ?? '')
+  const [pronouns, setPronouns] = useState(expandPronouns(profile?.pronouns))
   const [dob, setDob] = useState(profile?.dob ?? '')
   const [busy, setBusy] = useState(false)
   const [shaking, setShaking] = useState(false)
@@ -136,7 +105,8 @@ function PersonalForm({ hasInfo, onDone }: { hasInfo: boolean; onDone: () => Pro
         }),
       })
       if (!res.ok) throw new Error()
-      await onDone()
+      await refresh()
+      navigate('application')
     } catch {
       setError("Couldn't save that. Try again?")
       setBusy(false)
@@ -146,27 +116,41 @@ function PersonalForm({ hasInfo, onDone }: { hasInfo: boolean; onDone: () => Pro
   return (
     <form className="reg-card" onSubmit={submit}>
       <h1 className="reg-title">{hasInfo ? 'Your info' : "Let's get you set up"}</h1>
-      <p className="hint">Tell us who you are. You can reuse this at future events.</p>
 
-      <Field icon={<User size={20} />}>
-        <input value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Legal name" autoFocus />
-      </Field>
-      <Field icon={<User size={20} />}>
-        <input
-          value={preferredName}
-          onChange={(e) => setPreferredName(e.target.value)}
-          placeholder="Preferred name (optional)"
-        />
-      </Field>
-      <Field icon={<AtSign size={20} />}>
-        <input value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="Pronouns (optional)" />
-      </Field>
-      <Field icon={<Calendar size={20} />}>
-        <input type="date" value={dob ?? ''} onChange={(e) => setDob(e.target.value)} aria-label="Date of birth" />
-      </Field>
+      <TextField
+        label="Legal Name"
+        id="legal"
+        value={legalName}
+        onChange={setLegalName}
+        autoFocus={!hasInfo}
+      />
+      <TextField
+        label="Preferred Name"
+        id="preferred"
+        value={preferredName}
+        onChange={setPreferredName}
+      />
+      <FieldGroup label="Pronouns" htmlFor="pronouns">
+        <PronounsField id="pronouns" value={pronouns} onChange={setPronouns} />
+      </FieldGroup>
+      <FieldGroup label="Date of Birth" htmlFor="dob">
+        <DateField id="dob" value={dob} onChange={setDob} />
+      </FieldGroup>
 
-      <button className={`reg-btn${shaking ? ' shake' : ''}`} type="submit" disabled={busy} onAnimationEnd={() => setShaking(false)}>
-        {busy ? <Loader2 size={22} className="spin" /> : <>Continue<Arrow /></>}
+      <button
+        className={`reg-btn${shaking ? ' shake' : ''}`}
+        type="submit"
+        disabled={busy}
+        onAnimationEnd={() => setShaking(false)}
+      >
+        {busy ? (
+          <Loader2 size={22} className="spin" />
+        ) : (
+          <>
+            Continue
+            <Arrow />
+          </>
+        )}
       </button>
       {error && <p className="hint error">{error}</p>}
     </form>
@@ -273,30 +257,35 @@ function ApplicationStep() {
         onDisconnect={() => disconnect('hackatime')}
       />
 
-      <Field icon={<Utensils size={20} />}>
-        <input
-          value={dietary}
-          onChange={(e) => setDietary(e.target.value)}
-          placeholder="Dietary restrictions"
-        />
-      </Field>
-      <p className="hint reg-sub">Leave blank if you have none.</p>
-
-      <div className="field field-area">
-        <PenLine className="lead-icon" size={20} />
-        <textarea
-          value={freeform}
-          onChange={(e) => setFreeform(e.target.value)}
-          placeholder="Anything you'd like us to know? (optional)"
-          rows={5}
-        />
+      <div>
+        <TextField label="Dietary Restrictions" id="dietary" value={dietary} onChange={setDietary} />
+        <p className="hint reg-sub">Leave blank if you have none.</p>
       </div>
-      <p className={`hint reg-sub reg-counter${over ? ' error' : ''}`}>
-        {freeform.length}/{FREEFORM_MAX}
-      </p>
+
+      <FieldGroup label="Anything Else?" htmlFor="freeform">
+        <div className="field field-area">
+          <textarea
+            id="freeform"
+            value={freeform}
+            onChange={(e) => setFreeform(e.target.value)}
+            placeholder="Optional — tell us anything you'd like."
+            rows={5}
+          />
+        </div>
+        <p className={`hint reg-sub reg-counter${over ? ' error' : ''}`}>
+          {freeform.length}/{FREEFORM_MAX}
+        </p>
+      </FieldGroup>
 
       <button className="reg-btn" onClick={submit} disabled={busy || over}>
-        {busy ? <Loader2 size={22} className="spin" /> : <>Submit application<Arrow /></>}
+        {busy ? (
+          <Loader2 size={22} className="spin" />
+        ) : (
+          <>
+            Submit application
+            <Arrow />
+          </>
+        )}
       </button>
       {error && <p className="hint error">{error}</p>}
       <p className="hint">
@@ -349,13 +338,51 @@ function ConnectRow({
   )
 }
 
-// Shared white input row (icon on the left), matching the login screen.
-function Field({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+// A small white label sitting just above its input.
+function FieldGroup({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string
+  htmlFor?: string
+  children: React.ReactNode
+}) {
   return (
-    <label className="field">
-      <span className="lead-icon">{icon}</span>
+    <div className="reg-field-group">
+      <label className="reg-label" htmlFor={htmlFor}>
+        {label}
+      </label>
       {children}
-    </label>
+    </div>
+  )
+}
+
+// Labeled single-line white input (no icon), matching the login screen's box.
+function TextField({
+  label,
+  id,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  label: string
+  id: string
+  value: string
+  onChange: (v: string) => void
+  autoFocus?: boolean
+}) {
+  return (
+    <FieldGroup label={label} htmlFor={id}>
+      <div className="field">
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoFocus={autoFocus}
+        />
+      </div>
+    </FieldGroup>
   )
 }
 

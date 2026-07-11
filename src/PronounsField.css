@@ -1,0 +1,106 @@
+/* PronounsField — SegmentedField (subjective / objective / possessive) plus a
+   quick-select menu of the standard sets. Same flat, sharp, white-on-dark
+   vocabulary as the rest of the auth surface. */
+
+.pronouns-field {
+  position: relative;
+  width: 100%;
+}
+/* Composed inside a `.field` row: fill it like the bare input would. */
+.field .pronouns-field {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+/* Leave room at the right edge for the menu button so a long "theirs" never
+   slides under it. */
+.seg-field--pronouns {
+  padding-right: 44px;
+}
+.field .seg-field--pronouns {
+  padding-right: 44px;
+}
+/* Pronoun words are text, not digits: keep a normal insertion caret. */
+.seg-field--pronouns .seg-field-seg {
+  caret-color: auto;
+}
+
+/* The disclosure button, sitting inside the white box at the right edge. */
+.pronouns-menu-btn {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #000000;
+  cursor: pointer;
+}
+.pronouns-menu-btn svg {
+  display: block;
+  transition: transform 0.15s ease;
+}
+.pronouns-menu-btn[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pronouns-menu-btn svg {
+    transition: none;
+  }
+}
+
+/* The standard-sets popover. Flat white, sharp corners; a shadow lifts it off
+   the wave background since the system has no borders. */
+.pronouns-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.pronouns-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: 3rem;
+  margin: 0;
+  padding: 0 14px 0 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #000000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+/* Roving-focus / hover highlight — the same invert as a focused segment. */
+.pronouns-option:hover,
+.pronouns-option.is-active {
+  background: #000000;
+  color: #ffffff;
+}
+.pronouns-option .pronouns-check {
+  flex: none;
+  visibility: hidden;
+}
+.pronouns-option[aria-selected='true'] .pronouns-check {
+  visibility: visible;
+}

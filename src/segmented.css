@@ -1,0 +1,94 @@
+/* SegmentedField — the shared shell for fixed-format segmented inputs
+   (DateField, PronounsField). Standalone it is the same flat white box as
+   `.field` (login.css): sharp corners, 3.5rem tall, black on white, no
+   transitions (the system has none, so prefers-reduced-motion is satisfied by
+   construction). */
+
+.seg-field {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0 8px 0 16px;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 16px;
+  cursor: text;
+}
+
+/* Composed inside a `.field` row (e.g. after a lead icon): the outer .field
+   already provides the white box and padding, so shed ours and fill the row. */
+.field .seg-field {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+}
+
+/* Segments. Scoped under .seg-field so these outrank `.field input`
+   (which would otherwise impose flex: 1 / height: 100%). Fixed widths (set per
+   segment) keep the layout still while typing. */
+.seg-field .seg-field-seg {
+  flex: none;
+  box-sizing: content-box;
+  height: auto;
+  margin: 0;
+  padding: 4px 0;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: #000000;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  text-align: center;
+  cursor: text;
+}
+
+/* The focused segment inverts — the monochrome cousin of the native blue
+   highlight, and the focus indicator (keyboard and pointer behave alike,
+   as in native segmented inputs). */
+.seg-field .seg-field-seg:focus,
+.seg-field .seg-field-seg:focus-visible {
+  background: #000000;
+  color: #ffffff;
+}
+
+.seg-field .seg-field-seg::placeholder {
+  color: #9aa0aa;
+  opacity: 1;
+}
+.seg-field .seg-field-seg:focus::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Text is never selected by the user; hide any programmatic selection. */
+.seg-field .seg-field-seg::selection {
+  background: transparent;
+  color: inherit;
+}
+
+.seg-field-sep {
+  flex: none;
+  padding: 0 2px;
+  color: #000000;
+  user-select: none;
+}
+/* Separators read as part of the placeholder until something is typed. */
+.seg-field--empty .seg-field-sep {
+  color: #9aa0aa;
+}
+
+/* --- Date variant ------------------------------------------------------- */
+/* Digits edit as a unit: no insertion caret, tabular figures so numbers
+   don't jiggle while typing. */
+.seg-field--date .seg-field-seg {
+  font-variant-numeric: tabular-nums;
+  caret-color: transparent;
+}
