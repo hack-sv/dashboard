@@ -23,7 +23,7 @@ cf d1 query fbb87c66-6036-42d3-9406-a27c9942f99f \
 
 ## Data model (`migrations/0001_registration.sql`)
 
-- **`users`** — reusable personal identity (migrated from hack-id). Unchanged.
+- **`users`** — reusable personal identity. Unchanged.
 - **`registrations`** — one row per `(user_id, event_slug)`. Per-event, keyed to
   `CURRENT_EVENT.slug`.
 - **`connections`** — account-level OAuth links (`github`, `hackatime`, later

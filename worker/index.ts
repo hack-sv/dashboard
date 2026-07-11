@@ -92,7 +92,7 @@ async function getSessionUser(c: Context<{ Bindings: Bindings }>): Promise<Sessi
 }
 
 /**
- * Who-am-I. Returns the WorkOS identity, the D1 profile (migrated from hack-id),
+ * Who-am-I. Returns the WorkOS identity, the D1 profile,
  * the current event, this user's registration for it, and their account-level
  * connections. Never a hard 401 — the SPA renders login when `user` is null.
  */

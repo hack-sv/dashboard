@@ -37,7 +37,7 @@ export type ConnectionSummary = {
   connected_at: number
 }
 
-/** The migrated hack-id profile row for a WorkOS user, matched by email. */
+/** The D1 profile row for a WorkOS user, matched by email. */
 export async function getProfile(db: D1Database, email: string): Promise<Profile | null> {
   const row = await db
     .prepare(
