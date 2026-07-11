@@ -1,12 +1,33 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { WorkOS, AuthenticationException } from '@workos-inc/node'
+import { CURRENT_EVENT, FREEFORM_MAX } from './config'
+import { encryptToken } from './crypto'
+import {
+  getProfile,
+  ensureUserId,
+  updateProfile,
+  getRegistration,
+  upsertRegistrationDraft,
+  submitRegistration,
+  getConnections,
+  upsertConnection,
+  deleteConnection,
+} from './db'
 
 type Bindings = {
   WORKOS_API_KEY: string
   WORKOS_CLIENT_ID: string
   WORKOS_COOKIE_PASSWORD: string
   DB: D1Database
+  // Token encryption (base64 of 32 bytes).
+  TOKEN_ENC_KEY: string
+  // OAuth apps for account-level connections.
+  GITHUB_CLIENT_ID: string
+  GITHUB_CLIENT_SECRET: string
+  HACKATIME_CLIENT_ID: string
+  HACKATIME_CLIENT_SECRET: string
 }
 
 const SESSION_COOKIE = 'wos-session'
@@ -15,41 +36,16 @@ const SESSION_COOKIE = 'wos-session'
 // the user id so we can resend the verification code.
 const PENDING_COOKIE = 'wos-pending'
 const PENDING_USER_COOKIE = 'wos-pending-user'
+// CSRF guard for OAuth "connect" round-trips. Holds `${provider}:${state}`.
+const CONNECT_STATE_COOKIE = 'connect-state'
+
+type SessionUser = { id: string; email: string; [k: string]: unknown }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
 function client(env: Bindings) {
   // clientId is required for the sealed-session helpers.
   return new WorkOS(env.WORKOS_API_KEY, { clientId: env.WORKOS_CLIENT_ID })
-}
-
-/**
- * Look up the D1 profile for a WorkOS user by email.
- * Returns null when there's no matching row, so the UI can say "no info".
- */
-async function getProfile(env: Bindings, email: string) {
-  if (!env.DB) return null
-  try {
-    const row = await env.DB.prepare(
-      `SELECT id, email, legal_name, preferred_name, pronouns, dob, discord_id, events
-       FROM users WHERE lower(email) = lower(?1) LIMIT 1`,
-    )
-      .bind(email)
-      .first<Record<string, unknown>>()
-    if (!row) return null
-    // `events` is stored as a JSON string — hand back a real array.
-    if (typeof row.events === 'string') {
-      try {
-        row.events = JSON.parse(row.events)
-      } catch {
-        // leave the raw string if it isn't valid JSON
-      }
-    }
-    return row
-  } catch (err) {
-    console.error('[getProfile]', err)
-    return null
-  }
 }
 
 function cookieOptions(url: URL) {
@@ -63,48 +59,307 @@ function cookieOptions(url: URL) {
 }
 
 /**
- * Who-am-I. Unseals the session cookie (no network call), and transparently
- * refreshes an expired access token, re-setting the cookie. Returns
- * `{ user: null }` when there's no valid session — never a hard 401, so the
- * SPA can just render the login screen.
+ * Unseal the session cookie and return the WorkOS user, transparently refreshing
+ * an expired access token (and re-setting the cookie). Returns null when there's
+ * no valid session — callers decide whether that's a 401 or a `{ user: null }`.
  */
-app.get('/auth/session', async (c) => {
+async function getSessionUser(c: Context<{ Bindings: Bindings }>): Promise<SessionUser | null> {
   const sealed = getCookie(c, SESSION_COOKIE)
-  if (!sealed) return c.json({ user: null })
+  if (!sealed) return null
 
   const workos = client(c.env)
   const cookiePassword = c.env.WORKOS_COOKIE_PASSWORD
   const url = new URL(c.req.url)
 
-  const session = workos.userManagement.loadSealedSession({
-    sessionData: sealed,
-    cookiePassword,
-  })
-
+  const session = workos.userManagement.loadSealedSession({ sessionData: sealed, cookiePassword })
   const result = await session.authenticate()
-  if (result.authenticated) {
-    const profile = await getProfile(c.env, result.user.email)
-    return c.json({ user: result.user, profile })
-  }
+  if (result.authenticated) return result.user as unknown as SessionUser
 
   // Access token expired — try to refresh using the refresh token.
   const refreshed = await session.refresh()
   if (refreshed.authenticated && refreshed.sealedSession) {
     setCookie(c, SESSION_COOKIE, refreshed.sealedSession, cookieOptions(url))
-    // Re-authenticate the freshly sealed session to reliably get the user.
     const reloaded = workos.userManagement.loadSealedSession({
       sessionData: refreshed.sealedSession,
       cookiePassword,
     })
     const after = await reloaded.authenticate()
-    if (after.authenticated) {
-      const profile = await getProfile(c.env, after.user.email)
-      return c.json({ user: after.user, profile })
-    }
+    if (after.authenticated) return after.user as unknown as SessionUser
   }
 
   deleteCookie(c, SESSION_COOKIE, { path: '/' })
-  return c.json({ user: null, profile: null })
+  return null
+}
+
+/**
+ * Who-am-I. Returns the WorkOS identity, the D1 profile (migrated from hack-id),
+ * the current event, this user's registration for it, and their account-level
+ * connections. Never a hard 401 — the SPA renders login when `user` is null.
+ */
+app.get('/auth/session', async (c) => {
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ user: null, profile: null })
+
+  const profile = await getProfile(c.env.DB, user.email)
+  // Only read per-user rows when a users row already exists — session load never
+  // creates one (that happens lazily on the first profile/registration write).
+  const registration = profile
+    ? await getRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
+    : null
+  const connections = profile ? await getConnections(c.env.DB, profile.id) : []
+
+  return c.json({ user, profile, currentEvent: CURRENT_EVENT, registration, connections })
+})
+
+// ---------------------------------------------------------------------------
+// Registration — personal info (users) + per-event application (registrations)
+// ---------------------------------------------------------------------------
+
+/** Save the reusable personal-info fields (step 1: the "edit" / new-user form). */
+app.put('/auth/profile', async (c) => {
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'not authenticated' }, 401)
+
+  const body = await c.req.json<{
+    legal_name?: string
+    preferred_name?: string
+    pronouns?: string
+    dob?: string
+  }>()
+
+  const userId = await ensureUserId(c.env.DB, user.email)
+  await updateProfile(c.env.DB, userId, {
+    legal_name: body.legal_name?.trim() || undefined,
+    preferred_name: body.preferred_name?.trim() || undefined,
+    pronouns: body.pronouns?.trim() || undefined,
+    dob: body.dob?.trim() || undefined,
+  })
+  const profile = await getProfile(c.env.DB, user.email)
+  return c.json({ profile })
+})
+
+/** Fetch the current registration for CURRENT_EVENT (or null). */
+app.get('/auth/registration', async (c) => {
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'not authenticated' }, 401)
+  const profile = await getProfile(c.env.DB, user.email)
+  const registration = profile
+    ? await getRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
+    : null
+  return c.json({ registration })
+})
+
+/** Draft-save the per-event application fields (step 2). Creates the row if new. */
+app.put('/auth/registration', async (c) => {
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'not authenticated' }, 401)
+
+  const body = await c.req.json<{ dietary_restrictions?: string; freeform?: string }>()
+  const freeform = body.freeform ?? ''
+  if (freeform.length > FREEFORM_MAX) {
+    return c.json({ error: `freeform must be ${FREEFORM_MAX} characters or fewer` }, 400)
+  }
+
+  const userId = await ensureUserId(c.env.DB, user.email)
+  const registration = await upsertRegistrationDraft(c.env.DB, userId, CURRENT_EVENT.slug, {
+    dietary_restrictions: body.dietary_restrictions?.trim() || null,
+    freeform: freeform.trim() || null,
+  })
+  return c.json({ registration })
+})
+
+/** Submit the application: draft -> submitted (awaiting review). */
+app.post('/auth/registration/submit', async (c) => {
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'not authenticated' }, 401)
+
+  const profile = await getProfile(c.env.DB, user.email)
+  // A name is the one hard requirement — everything else is optional.
+  if (!profile || !(profile.legal_name || profile.preferred_name)) {
+    return c.json({ error: 'please fill in your name before submitting' }, 400)
+  }
+  const existing = await getRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
+  if (!existing) return c.json({ error: 'no registration to submit' }, 400)
+
+  const registration = await submitRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
+  return c.json({ registration })
+})
+
+// ---------------------------------------------------------------------------
+// Account-level OAuth connections (GitHub, Hackatime)
+// ---------------------------------------------------------------------------
+
+type ProviderCfg = {
+  authorizeUrl: string
+  tokenUrl: string
+  scope: string
+  clientId: (env: Bindings) => string
+  clientSecret: (env: Bindings) => string
+  // Exchange body for the token endpoint (form-encoded).
+  tokenBody: (params: {
+    code: string
+    redirectUri: string
+    clientId: string
+    clientSecret: string
+  }) => Record<string, string>
+  tokenHeaders?: Record<string, string>
+  // Fetch the connected identity with the access token.
+  fetchIdentity: (token: string) => Promise<{ external_id: string | null; username: string | null }>
+}
+
+const PROVIDERS: Record<'github' | 'hackatime', ProviderCfg> = {
+  github: {
+    authorizeUrl: 'https://github.com/login/oauth/authorize',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    scope: 'read:user',
+    clientId: (env) => env.GITHUB_CLIENT_ID,
+    clientSecret: (env) => env.GITHUB_CLIENT_SECRET,
+    tokenBody: ({ code, redirectUri, clientId, clientSecret }) => ({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+    }),
+    tokenHeaders: { Accept: 'application/json' },
+    fetchIdentity: async (token) => {
+      const res = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'hack.sv-dashboard',
+        },
+      })
+      if (!res.ok) throw new Error(`github /user ${res.status}`)
+      const u = (await res.json()) as { id: number; login: string }
+      return { external_id: String(u.id), username: u.login }
+    },
+  },
+  hackatime: {
+    authorizeUrl: 'https://hackatime.hackclub.com/oauth/authorize',
+    tokenUrl: 'https://hackatime.hackclub.com/oauth/token',
+    scope: 'profile read',
+    clientId: (env) => env.HACKATIME_CLIENT_ID,
+    clientSecret: (env) => env.HACKATIME_CLIENT_SECRET,
+    tokenBody: ({ code, redirectUri, clientId, clientSecret }) => ({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+    fetchIdentity: async (token) => {
+      const res = await fetch('https://hackatime.hackclub.com/api/v1/authenticated/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`hackatime /me ${res.status}`)
+      const u = (await res.json()) as { id: number; github_username?: string | null }
+      return { external_id: String(u.id), username: u.github_username ?? null }
+    },
+  },
+}
+
+function isProvider(p: string): p is 'github' | 'hackatime' {
+  return p === 'github' || p === 'hackatime'
+}
+
+/** Kick off connecting an account-level provider. Requires an active session. */
+app.get('/auth/connect/:provider', async (c) => {
+  const provider = c.req.param('provider')
+  if (!isProvider(provider)) return c.json({ error: 'unknown provider' }, 404)
+
+  const user = await getSessionUser(c)
+  if (!user) return c.redirect('/auth')
+
+  const cfg = PROVIDERS[provider]
+  const clientId = cfg.clientId(c.env)
+  if (!clientId) {
+    return c.redirect(`/register/application?error=${provider}_not_configured`)
+  }
+
+  const url = new URL(c.req.url)
+  const state = crypto.randomUUID()
+  setCookie(c, CONNECT_STATE_COOKIE, `${provider}:${state}`, {
+    ...cookieOptions(url),
+    maxAge: 60 * 15, // 15 min
+  })
+
+  const authorize = new URL(cfg.authorizeUrl)
+  authorize.searchParams.set('client_id', clientId)
+  authorize.searchParams.set('redirect_uri', `${url.origin}/auth/connect/${provider}/callback`)
+  authorize.searchParams.set('response_type', 'code')
+  authorize.searchParams.set('scope', cfg.scope)
+  authorize.searchParams.set('state', state)
+  return c.redirect(authorize.toString())
+})
+
+/** OAuth redirect target: verify state, exchange code, store the connection. */
+app.get('/auth/connect/:provider/callback', async (c) => {
+  const provider = c.req.param('provider')
+  if (!isProvider(provider)) return c.json({ error: 'unknown provider' }, 404)
+
+  const dest = (q: string) => c.redirect(`/register/application?${q}`)
+
+  const user = await getSessionUser(c)
+  if (!user) return c.redirect('/auth')
+
+  const err = c.req.query('error')
+  if (err) return dest(`error=${provider}_denied`)
+
+  const code = c.req.query('code')
+  const state = c.req.query('state')
+  const cookieState = getCookie(c, CONNECT_STATE_COOKIE)
+  deleteCookie(c, CONNECT_STATE_COOKIE, { path: '/' })
+  if (!code || !state || cookieState !== `${provider}:${state}`) {
+    return dest(`error=${provider}_state`)
+  }
+
+  const cfg = PROVIDERS[provider]
+  const url = new URL(c.req.url)
+  try {
+    const tokenRes = await fetch(cfg.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(cfg.tokenHeaders ?? {}) },
+      body: new URLSearchParams(
+        cfg.tokenBody({
+          code,
+          redirectUri: `${url.origin}/auth/connect/${provider}/callback`,
+          clientId: cfg.clientId(c.env),
+          clientSecret: cfg.clientSecret(c.env),
+        }),
+      ),
+    })
+    if (!tokenRes.ok) throw new Error(`token ${tokenRes.status}`)
+    const tokenJson = (await tokenRes.json()) as { access_token?: string; scope?: string }
+    if (!tokenJson.access_token) throw new Error('no access_token')
+
+    const identity = await cfg.fetchIdentity(tokenJson.access_token)
+    const userId = await ensureUserId(c.env.DB, user.email)
+    await upsertConnection(c.env.DB, {
+      user_id: userId,
+      provider,
+      external_id: identity.external_id,
+      username: identity.username,
+      access_token: await encryptToken(c.env.TOKEN_ENC_KEY, tokenJson.access_token),
+      scopes: tokenJson.scope ?? cfg.scope,
+    })
+    return dest(`connected=${provider}`)
+  } catch (e) {
+    console.error(`[connect/${provider}]`, e)
+    return dest(`error=${provider}_failed`)
+  }
+})
+
+/** Remove an account-level connection. */
+app.post('/auth/connect/:provider/disconnect', async (c) => {
+  const provider = c.req.param('provider')
+  if (!isProvider(provider)) return c.json({ error: 'unknown provider' }, 404)
+
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'not authenticated' }, 401)
+
+  const userId = await ensureUserId(c.env.DB, user.email)
+  await deleteConnection(c.env.DB, userId, provider)
+  return c.json({ ok: true })
 })
 
 /** Kick off the "Continue with Google" flow. */
@@ -123,7 +378,9 @@ app.get('/auth/google', (c) => {
 app.get('/auth/callback', async (c) => {
   const code = c.req.query('code')
   if (!code) {
-    return c.redirect('/auth?error=' + encodeURIComponent('Sign-in was interrupted. Please try again.'))
+    return c.redirect(
+      '/auth?error=' + encodeURIComponent('Sign-in was interrupted. Please try again.'),
+    )
   }
 
   const workos = client(c.env)

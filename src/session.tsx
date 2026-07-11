@@ -22,41 +22,86 @@ export type Profile = {
   events?: string[] | string | null
 } | null
 
+// Per-event application row, or null before the user starts one.
+export type Registration = {
+  id: string
+  user_id: string
+  event_slug: string
+  dietary_restrictions: string | null
+  freeform: string | null
+  status: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'waitlisted' | string
+  created_at: number
+  updated_at: number
+  submitted_at: number | null
+} | null
+
+// Account-level OAuth link (never carries the access token).
+export type Connection = {
+  provider: string
+  external_id: string | null
+  username: string | null
+  scopes: string | null
+  connected_at: number
+}
+
+export type CurrentEvent = { slug: string; name: string }
+
 type Status = 'loading' | 'authed' | 'anon'
 
-type Session = {
-  status: Status
+type SessionData = {
   user: User | null
   profile: Profile
+  registration: Registration
+  connections: Connection[]
+  currentEvent: CurrentEvent | null
+}
+
+type Session = SessionData & {
+  status: Status
   refresh: () => Promise<void>
   logout: () => Promise<void>
+}
+
+const EMPTY: SessionData = {
+  user: null,
+  profile: null,
+  registration: null,
+  connections: [],
+  currentEvent: null,
 }
 
 const SessionContext = createContext<Session | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile>(null)
+  const [data, setData] = useState<SessionData>(EMPTY)
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/session`)
-      const data = (await res.json()) as { user: User | null; profile: Profile }
-      setUser(data.user)
-      setProfile(data.user ? data.profile : null)
-      setStatus(data.user ? 'authed' : 'anon')
+      const d = (await res.json()) as Partial<SessionData>
+      if (d.user) {
+        setData({
+          user: d.user,
+          profile: d.profile ?? null,
+          registration: d.registration ?? null,
+          connections: d.connections ?? [],
+          currentEvent: d.currentEvent ?? null,
+        })
+        setStatus('authed')
+      } else {
+        setData(EMPTY)
+        setStatus('anon')
+      }
     } catch {
-      setUser(null)
-      setProfile(null)
+      setData(EMPTY)
       setStatus('anon')
     }
   }, [])
 
   const logout = useCallback(async () => {
     await fetch(`${API_BASE}/logout`, { method: 'POST' })
-    setUser(null)
-    setProfile(null)
+    setData(EMPTY)
     setStatus('anon')
   }, [])
 
@@ -65,7 +110,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   return (
-    <SessionContext.Provider value={{ status, user, profile, refresh, logout }}>
+    <SessionContext.Provider value={{ status, ...data, refresh, logout }}>
       {children}
     </SessionContext.Provider>
   )

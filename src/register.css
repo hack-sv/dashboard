@@ -1,0 +1,135 @@
+/* Registration wizard. Deliberately reuses the login vocabulary (.field,
+   .lead-icon, .hint, .error, .spin) so the two flows feel like one surface:
+   flat white sharp inputs sitting directly on the wave background. */
+
+.reg-card {
+  width: 100%;
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reg-title {
+  margin: 0 0 2px;
+  color: #fff;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* A hint tucked directly under a field: left-aligned, tighter than a standalone hint. */
+.reg-sub {
+  margin: -6px 2px 4px;
+  text-align: left;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.reg-counter {
+  text-align: right;
+}
+
+/* Primary action — the same flat white box as .google-btn / .field, with a label. */
+.reg-btn {
+  box-sizing: border-box;
+  width: 100%;
+  height: 3.5rem;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reg-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.reg-btn.shake {
+  animation: auth-shake 0.4s ease-in-out both;
+}
+
+/* Multiline "anything you'd like" field — the white box, grown to fit a textarea. */
+.field.field-area {
+  height: auto;
+  align-items: flex-start;
+  padding: 14px 16px;
+}
+.field.field-area .lead-icon {
+  margin-top: 2px;
+}
+.field.field-area textarea {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #000;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  resize: vertical;
+}
+.field textarea::placeholder {
+  color: #9aa0aa;
+}
+
+/* Connected provider row: label fills the width, check + disconnect sit right. */
+.field.field-connected .field-btn-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reg-check {
+  color: #1a7f37;
+  flex: none;
+}
+.reg-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  flex: none;
+}
+.reg-x:hover {
+  color: #000;
+}
+
+/* Step-1 "reuse" preview — plain white lines over the background, no boxes. */
+.reg-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 2px 6px;
+}
+.reg-review-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 15px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+.reg-review-icon {
+  display: flex;
+  color: rgba(255, 255, 255, 0.8);
+  flex: none;
+}

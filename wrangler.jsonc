@@ -30,7 +30,11 @@
       "/auth/magic/*",
       "/auth/verify-email",
       "/auth/verify-resend",
-      "/auth/logout"
+      "/auth/logout",
+      "/auth/profile",
+      "/auth/registration",
+      "/auth/registration/*",
+      "/auth/connect/*"
     ]
   },
   "d1_databases": [
