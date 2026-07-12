@@ -60,177 +60,177 @@ const float PI = 3.14159265359;
 float hash11(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
 
 vec2 hash21(float n) {
-	return fract(sin(vec2(n, n + 1.7)) * vec2(43758.5453, 22578.1459));
+  return fract(sin(vec2(n, n + 1.7)) * vec2(43758.5453, 22578.1459));
 }
 
 float valueNoise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	float a = hash11(dot(i, vec2(1.0, 57.0)));
-	float b = hash11(dot(i + vec2(1.0, 0.0), vec2(1.0, 57.0)));
-	float c = hash11(dot(i + vec2(0.0, 1.0), vec2(1.0, 57.0)));
-	float d = hash11(dot(i + vec2(1.0, 1.0), vec2(1.0, 57.0)));
-	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash11(dot(i, vec2(1.0, 57.0)));
+  float b = hash11(dot(i + vec2(1.0, 0.0), vec2(1.0, 57.0)));
+  float c = hash11(dot(i + vec2(0.0, 1.0), vec2(1.0, 57.0)));
+  float d = hash11(dot(i + vec2(1.0, 1.0), vec2(1.0, 57.0)));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
 float fbm(vec2 p) {
-	float v = 0.0;
-	float a = 0.5;
-	for (int i = 0; i < 3; i++) {
-		v += a * valueNoise(p);
-		p *= 2.02;
-		a *= 0.5;
-	}
-	return v;
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    v += a * valueNoise(p);
+    p *= 2.02;
+    a *= 0.5;
+  }
+  return v;
 }
 
 // Domain warp: fold the plane through fbm twice, so iso-lines of the
 // final field bend into smooth liquid sheets. Returns the scalar field
 // plus the intermediate warp vectors (used for sheen + ribbons).
 float flowField(vec2 p, float t, out vec2 q, out vec2 r) {
-	q = vec2(
-		fbm(p + vec2(0.0, 0.0) + t * 0.12),
-		fbm(p + vec2(5.2, 1.3) - t * 0.10)
-	);
-	r = vec2(
-		fbm(p + 1.3 * q + vec2(1.7, 9.2) - t * 0.09),
-		fbm(p + 1.3 * q + vec2(8.3, 2.8) + t * 0.08)
-	);
-	return fbm(p + 1.7 * r + t * 0.05);
+  q = vec2(
+    fbm(p + vec2(0.0, 0.0) + t * 0.12),
+    fbm(p + vec2(5.2, 1.3) - t * 0.10)
+  );
+  r = vec2(
+    fbm(p + 1.3 * q + vec2(1.7, 9.2) - t * 0.09),
+    fbm(p + 1.3 * q + vec2(8.3, 2.8) + t * 0.08)
+  );
+  return fbm(p + 1.7 * r + t * 0.05);
 }
 
 // A rounded-teardrop petal with fake volume shading, so it reads as a
 // curled 3D petal, not a flat sprite. Returns coverage 0..1 and writes a
 // 0 (shadow) .. 1 (lit) shade that follows the petal as it rotates.
 float petal(vec2 pos, vec2 center, float size, float rot, float width, out float shade) {
-	vec2 d = pos - center;
-	float c = cos(rot), s = sin(rot);
-	vec2 dl = mat2(c, -s, s, c) * d / max(size, 1e-4);
+  vec2 d = pos - center;
+  float c = cos(rot), s = sin(rot);
+  vec2 dl = mat2(c, -s, s, c) * d / max(size, 1e-4);
 
-	// Teardrop: pinched to a narrow base at dl.y<0, rounded at the tip.
-	float pinch = mix(0.32, 1.0, smoothstep(-1.0, 0.35, dl.y));
-	vec2 e = vec2(dl.x / (width * pinch), dl.y);
-	float r = length(e);
+  // Teardrop: pinched to a narrow base at dl.y<0, rounded at the tip.
+  float pinch = mix(0.32, 1.0, smoothstep(-1.0, 0.35, dl.y));
+  vec2 e = vec2(dl.x / (width * pinch), dl.y);
+  float r = length(e);
 
-	// Fake surface normal: the petal bulges out of screen and curls at its
-	// edges. Rotate that normal into world space and light it from the
-	// upper-left, so the lit/shadow sides swing around as the petal turns.
-	vec2 nLocal = vec2(e.x, dl.y * 0.5);
-	vec2 nWorld = mat2(c, s, -s, c) * nLocal;
-	float diff = 0.5 + 0.5 * dot(normalize(nWorld + vec2(1e-4)), vec2(-0.45, 0.62));
-	float dome = sqrt(max(0.0, 1.0 - min(r, 1.0) * min(r, 1.0)));
-	shade = clamp(0.26 + 0.58 * diff + 0.26 * dome, 0.0, 1.0);
+  // Fake surface normal: the petal bulges out of screen and curls at its
+  // edges. Rotate that normal into world space and light it from the
+  // upper-left, so the lit/shadow sides swing around as the petal turns.
+  vec2 nLocal = vec2(e.x, dl.y * 0.5);
+  vec2 nWorld = mat2(c, s, -s, c) * nLocal;
+  float diff = 0.5 + 0.5 * dot(normalize(nWorld + vec2(1e-4)), vec2(-0.45, 0.62));
+  float dome = sqrt(max(0.0, 1.0 - min(r, 1.0) * min(r, 1.0)));
+  shade = clamp(0.26 + 0.58 * diff + 0.26 * dome, 0.0, 1.0);
 
-	// Feathered edge with a solid body.
-	return smoothstep(1.0, 0.40, r);
+  // Feathered edge with a solid body.
+  return smoothstep(1.0, 0.40, r);
 }
 
 void main() {
-	vec2 frag = gl_FragCoord.xy;
-	vec2 res = uResolution.x > 0.5 ? uResolution : vec2(1280.0, 720.0);
-	vec2 uv = frag / res;
-	float aspect = res.x / res.y;
+  vec2 frag = gl_FragCoord.xy;
+  vec2 res = uResolution.x > 0.5 ? uResolution : vec2(1280.0, 720.0);
+  vec2 uv = frag / res;
+  float aspect = res.x / res.y;
 
-	// Slow, drifting flow. Two overlaid scales give parallax — a broad
-	// backdrop sheet and a nearer one flowing past it.
-	float t = uTime * 0.14;
-	vec2 base = vec2(uv.x * aspect, uv.y);
-	vec2 drift = vec2(t * 0.02, -t * 0.014);
+  // Slow, drifting flow. Two overlaid scales give parallax — a broad
+  // backdrop sheet and a nearer one flowing past it.
+  float t = uTime * 0.14;
+  vec2 base = vec2(uv.x * aspect, uv.y);
+  vec2 drift = vec2(t * 0.02, -t * 0.014);
 
-	// Blue family, same hues as the 2026 flowers. The floor is a real
-	// navy — the field never resolves to black.
-	vec3 c1 = vec3(0.028, 0.115, 0.250);
-	vec3 c2 = vec3(0.050, 0.210, 0.450);
-	vec3 c3 = vec3(0.110, 0.350, 0.680);
-	vec3 c4 = vec3(0.280, 0.520, 0.830);
-	vec3 c5 = vec3(0.500, 0.680, 0.930);
+  // Blue family, same hues as the 2026 flowers. The floor is a real
+  // navy — the field never resolves to black.
+  vec3 c1 = vec3(0.028, 0.115, 0.250);
+  vec3 c2 = vec3(0.050, 0.210, 0.450);
+  vec3 c3 = vec3(0.110, 0.350, 0.680);
+  vec3 c4 = vec3(0.280, 0.520, 0.830);
+  vec3 c5 = vec3(0.500, 0.680, 0.930);
 
-	// One broad, soft warp sheet for the backdrop (cheap — the petals
-	// carry the definition, so we don't pay for a second warp).
-	vec2 qA, rA;
-	float fA = flowField(base * 1.2 + drift + vec2(uSeed * 0.017), t, qA, rA);
+  // One broad, soft warp sheet for the backdrop (cheap — the petals
+  // carry the definition, so we don't pay for a second warp).
+  vec2 qA, rA;
+  float fA = flowField(base * 1.2 + drift + vec2(uSeed * 0.017), t, qA, rA);
 
-	// A slow, large-scale glow so even the low regions keep a gentle
-	// gradient — never a flat, dead navy field.
-	float glow = smoothstep(0.25, 0.85, fbm(base * 0.6 + qA * 0.4 + drift));
+  // A slow, large-scale glow so even the low regions keep a gentle
+  // gradient — never a flat, dead navy field.
+  float glow = smoothstep(0.25, 0.85, fbm(base * 0.6 + qA * 0.4 + drift));
 
-	// Remap so the darkest regions still sit at a live navy (c1), not black.
-	float f = smoothstep(0.18, 0.86, fA);
-	f = mix(f, max(f, glow * 0.55), 0.6);
-	f = 0.34 + 0.66 * f;
+  // Remap so the darkest regions still sit at a live navy (c1), not black.
+  float f = smoothstep(0.18, 0.86, fA);
+  f = mix(f, max(f, glow * 0.55), 0.6);
+  f = 0.34 + 0.66 * f;
 
-	vec3 col = c1;
-	col = mix(col, c2, smoothstep(0.24, 0.50, f));
-	col = mix(col, c3, smoothstep(0.46, 0.72, f));
-	col = mix(col, c4, smoothstep(0.68, 0.88, f));
-	col = mix(col, c5, smoothstep(0.87, 0.99, f));
+  vec3 col = c1;
+  col = mix(col, c2, smoothstep(0.24, 0.50, f));
+  col = mix(col, c3, smoothstep(0.46, 0.72, f));
+  col = mix(col, c4, smoothstep(0.68, 0.88, f));
+  col = mix(col, c5, smoothstep(0.87, 0.99, f));
 
-	// Soft sheen where the warp folds — light glancing off silk.
-	float sheen = length(rA - 0.5);
-	col = mix(col, c4, smoothstep(0.42, 0.85, sheen) * 0.20);
+  // Soft sheen where the warp folds — light glancing off silk.
+  float sheen = length(rA - 0.5);
+  col = mix(col, c4, smoothstep(0.42, 0.85, sheen) * 0.20);
 
-	// Faint flowing ribbon creases, kept subtle.
-	float ribbon = 0.5 + 0.5 * sin((rA.x * 2.4 + qA.y * 2.0 + f * 4.0 + t * 0.4) * PI * 2.0);
-	ribbon = pow(ribbon, 6.0);
-	col = mix(col, c5, ribbon * 0.16 * smoothstep(0.35, 0.9, f));
+  // Faint flowing ribbon creases, kept subtle.
+  float ribbon = 0.5 + 0.5 * sin((rA.x * 2.4 + qA.y * 2.0 + f * 4.0 + t * 0.4) * PI * 2.0);
+  ribbon = pow(ribbon, 6.0);
+  col = mix(col, c5, ribbon * 0.16 * smoothstep(0.35, 0.9, f));
 
-	// --- drifting petals: soft, abstract, flowery definition ----------
-	// Each petal falls slowly while the wind pushes it side to side, so it
-	// swirls and drifts around rather than dropping straight. Nearer petals
-	// (higher depth) are larger, brighter and sway wider — parallax. They
-	// blend translucently into the silk and wrap around the screen.
-	// A few large 3D petals falling and drifting in the wind. They run on
-	// their own clock (faster than the slow silk) so the fall reads clearly.
-	const int PETALS = 18;
-	float wrapW = aspect + 1.6;
-	float pt = uTime;
-	for (int i = 0; i < PETALS; i++) {
-		float fi = float(i);
-		vec2 h = hash21(fi * 3.17 + uSeed * 0.019);
-		float depth = hash11(fi * 1.61 + 4.2);      // 0 back .. 1 front
-		// All big: even the rear petals are large now, and the foreground
-		// giants span well over half the screen.
-		float size = mix(0.46, 0.70, depth) * mix(0.94, 1.08, hash11(fi + 13.0));
-		float width = mix(0.52, 0.70, hash11(fi + 9.0));
-		float phase = h.x * 6.2831 + fi;
+  // --- drifting petals: soft, abstract, flowery definition ----------
+  // Each petal falls slowly while the wind pushes it side to side, so it
+  // swirls and drifts around rather than dropping straight. Nearer petals
+  // (higher depth) are larger, brighter and sway wider — parallax. They
+  // blend translucently into the silk and wrap around the screen.
+  // A few large 3D petals falling and drifting in the wind. They run on
+  // their own clock (faster than the slow silk) so the fall reads clearly.
+  const int PETALS = 18;
+  float wrapW = aspect + 1.6;
+  float pt = uTime;
+  for (int i = 0; i < PETALS; i++) {
+    float fi = float(i);
+    vec2 h = hash21(fi * 3.17 + uSeed * 0.019);
+    float depth = hash11(fi * 1.61 + 4.2);      // 0 back .. 1 front
+    // All big: even the rear petals are large now, and the foreground
+    // giants span well over half the screen.
+    float size = mix(0.46, 0.70, depth) * mix(0.94, 1.08, hash11(fi + 13.0));
+    float width = mix(0.52, 0.70, hash11(fi + 9.0));
+    float phase = h.x * 6.2831 + fi;
 
-		float fallSpeed = mix(0.040, 0.075, depth);           // gentle descent
-		float swayAmp = mix(0.06, 0.14, depth);
-		float swayFreq = mix(0.18, 0.36, hash11(fi + 2.0));
-		float lateral = (hash11(fi + 5.0) - 0.5) * 0.03;      // slow net drift
+    float fallSpeed = mix(0.040, 0.075, depth);           // gentle descent
+    float swayAmp = mix(0.06, 0.14, depth);
+    float swayFreq = mix(0.18, 0.36, hash11(fi + 2.0));
+    float lateral = (hash11(fi + 5.0) - 0.5) * 0.03;      // slow net drift
 
-		// Wind: two offset sines so the sideways path meanders and loops.
-		float sway = sin(pt * swayFreq + phase) * 0.7 + sin(pt * swayFreq * 0.47 + phase * 1.7) * 0.3;
+    // Wind: two offset sines so the sideways path meanders and loops.
+    float sway = sin(pt * swayFreq + phase) * 0.7 + sin(pt * swayFreq * 0.47 + phase * 1.7) * 0.3;
 
-		// Seed initial positions on a low-discrepancy (golden-ratio)
-		// sequence rather than the raw hash, so the petals are evenly
-		// spread from the very first frame — no start-up clump, no gap.
-		float vx = fract(fi * 0.7548776662 + h.x * 0.3);
-		float vy = fract(fi * 0.6180339887 + h.y * 0.25);
+    // Seed initial positions on a low-discrepancy (golden-ratio)
+    // sequence rather than the raw hash, so the petals are evenly
+    // spread from the very first frame — no start-up clump, no gap.
+    float vx = fract(fi * 0.7548776662 + h.x * 0.3);
+    float vy = fract(fi * 0.6180339887 + h.y * 0.25);
 
-		// Wide wrap margins so the large petals leave the frame fully
-		// before reappearing on the far side (no popping).
-		float px = mod(vx * wrapW + sway * swayAmp + pt * lateral, wrapW) - 0.8;
-		float py = mod(vy * 2.6 - pt * fallSpeed, 2.6) - 0.8;   // falls, wraps to top
-		vec2 center = vec2(px, py);
+    // Wide wrap margins so the large petals leave the frame fully
+    // before reappearing on the far side (no popping).
+    float px = mod(vx * wrapW + sway * swayAmp + pt * lateral, wrapW) - 0.8;
+    float py = mod(vy * 2.6 - pt * fallSpeed, 2.6) - 0.8;   // falls, wraps to top
+    vec2 center = vec2(px, py);
 
-		// Gentle flutter: the petal tips with the wind as it sways.
-		float rot = phase + sway * 0.7;
-		float shade;
-		float m = petal(base, center, size, rot, width, shade);
-		if (m <= 0.003) continue;
+    // Gentle flutter: the petal tips with the wind as it sways.
+    float rot = phase + sway * 0.7;
+    float shade;
+    float m = petal(base, center, size, rot, width, shade);
+    if (m <= 0.003) continue;
 
-		// Dark→light across the petal's 3D form; front petals a touch bolder.
-		vec3 pc = mix(c2, c5, shade);
-		float alpha = m * mix(0.55, 0.82, depth);
-		col = mix(col, pc, alpha);
-	}
+    // Dark→light across the petal's 3D form; front petals a touch bolder.
+    vec3 pc = mix(c2, c5, shade);
+    float alpha = m * mix(0.55, 0.82, depth);
+    col = mix(col, pc, alpha);
+  }
 
-	// Very gentle depth shaping.
-	col *= mix(0.96, 1.05, smoothstep(0.1, 0.85, f));
+  // Very gentle depth shaping.
+  col *= mix(0.96, 1.05, smoothstep(0.1, 0.85, f));
 
-	outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `
 
@@ -247,42 +247,42 @@ uniform float uTime;
 uniform float uSeed;
 
 const float BAYER[64] = float[64](
-	 0.0/64.0, 32.0/64.0,  8.0/64.0, 40.0/64.0,  2.0/64.0, 34.0/64.0, 10.0/64.0, 42.0/64.0,
-	48.0/64.0, 16.0/64.0, 56.0/64.0, 24.0/64.0, 50.0/64.0, 18.0/64.0, 58.0/64.0, 26.0/64.0,
-	12.0/64.0, 44.0/64.0,  4.0/64.0, 36.0/64.0, 14.0/64.0, 46.0/64.0,  6.0/64.0, 38.0/64.0,
-	60.0/64.0, 28.0/64.0, 52.0/64.0, 20.0/64.0, 62.0/64.0, 30.0/64.0, 54.0/64.0, 22.0/64.0,
-	 3.0/64.0, 35.0/64.0, 11.0/64.0, 43.0/64.0,  1.0/64.0, 33.0/64.0,  9.0/64.0, 41.0/64.0,
-	51.0/64.0, 19.0/64.0, 59.0/64.0, 27.0/64.0, 49.0/64.0, 17.0/64.0, 57.0/64.0, 25.0/64.0,
-	15.0/64.0, 47.0/64.0,  7.0/64.0, 39.0/64.0, 13.0/64.0, 45.0/64.0,  5.0/64.0, 37.0/64.0,
-	63.0/64.0, 31.0/64.0, 55.0/64.0, 23.0/64.0, 61.0/64.0, 29.0/64.0, 53.0/64.0, 21.0/64.0
+   0.0/64.0, 32.0/64.0,  8.0/64.0, 40.0/64.0,  2.0/64.0, 34.0/64.0, 10.0/64.0, 42.0/64.0,
+  48.0/64.0, 16.0/64.0, 56.0/64.0, 24.0/64.0, 50.0/64.0, 18.0/64.0, 58.0/64.0, 26.0/64.0,
+  12.0/64.0, 44.0/64.0,  4.0/64.0, 36.0/64.0, 14.0/64.0, 46.0/64.0,  6.0/64.0, 38.0/64.0,
+  60.0/64.0, 28.0/64.0, 52.0/64.0, 20.0/64.0, 62.0/64.0, 30.0/64.0, 54.0/64.0, 22.0/64.0,
+   3.0/64.0, 35.0/64.0, 11.0/64.0, 43.0/64.0,  1.0/64.0, 33.0/64.0,  9.0/64.0, 41.0/64.0,
+  51.0/64.0, 19.0/64.0, 59.0/64.0, 27.0/64.0, 49.0/64.0, 17.0/64.0, 57.0/64.0, 25.0/64.0,
+  15.0/64.0, 47.0/64.0,  7.0/64.0, 39.0/64.0, 13.0/64.0, 45.0/64.0,  5.0/64.0, 37.0/64.0,
+  63.0/64.0, 31.0/64.0, 55.0/64.0, 23.0/64.0, 61.0/64.0, 29.0/64.0, 53.0/64.0, 21.0/64.0
 );
 
 void main() {
-	vec2 frag = gl_FragCoord.xy;
-	vec2 res = uResolution.x > 0.5 ? uResolution : vec2(1280.0, 720.0);
-	vec2 uv = frag / res;
-	vec2 texel = 1.0 / max(uSceneResolution, vec2(1.0));
-	vec3 col = texture(uScene, clamp(uv, texel * 0.5, 1.0 - texel * 0.5)).rgb;
+  vec2 frag = gl_FragCoord.xy;
+  vec2 res = uResolution.x > 0.5 ? uResolution : vec2(1280.0, 720.0);
+  vec2 uv = frag / res;
+  vec2 texel = 1.0 / max(uSceneResolution, vec2(1.0));
+  vec3 col = texture(uScene, clamp(uv, texel * 0.5, 1.0 - texel * 0.5)).rgb;
 
-	vec2 ditherFrag = floor(frag / 1.0);
-	int bx = int(mod(ditherFrag.x, 8.0));
-	int by = int(mod(ditherFrag.y, 8.0));
-	float threshold = BAYER[by * 8 + bx];
+  vec2 ditherFrag = floor(frag / 1.0);
+  int bx = int(mod(ditherFrag.x, 8.0));
+  int by = int(mod(ditherFrag.y, 8.0));
+  float threshold = BAYER[by * 8 + bx];
 
-	vec3 gammaCol = pow(max(col, vec3(0.0)), vec3(0.82));
-	float lum = dot(gammaCol, vec3(0.299, 0.587, 0.114));
+  vec3 gammaCol = pow(max(col, vec3(0.0)), vec3(0.82));
+  float lum = dot(gammaCol, vec3(0.299, 0.587, 0.114));
 
-	float bands = mix(4.0, 7.0, smoothstep(0.18, 0.72, lum));
-	float q = floor(lum * bands + threshold * 0.95) / bands;
-	gammaCol *= q / max(lum, 0.0015);
+  float bands = mix(4.0, 7.0, smoothstep(0.18, 0.72, lum));
+  float q = floor(lum * bands + threshold * 0.95) / bands;
+  gammaCol *= q / max(lum, 0.0015);
 
-	gammaCol.r = floor(gammaCol.r * 8.0 + threshold * 0.65) / 8.0;
-	gammaCol.g = floor(gammaCol.g * 10.0 + threshold * 0.70) / 10.0;
-	gammaCol.b = floor(gammaCol.b * 12.0 + threshold * 0.75) / 12.0;
+  gammaCol.r = floor(gammaCol.r * 8.0 + threshold * 0.65) / 8.0;
+  gammaCol.g = floor(gammaCol.g * 10.0 + threshold * 0.70) / 10.0;
+  gammaCol.b = floor(gammaCol.b * 12.0 + threshold * 0.75) / 12.0;
 
-	col = pow(max(gammaCol, vec3(0.0)), vec3(1.0 / 0.82));
-	col *= 0.98;
-	outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  col = pow(max(gammaCol, vec3(0.0)), vec3(1.0 / 0.82));
+  col *= 0.98;
+  outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `
 
