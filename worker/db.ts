@@ -33,6 +33,7 @@ export type ConnectionSummary = {
   provider: string
   external_id: string | null
   username: string | null
+  detail: string | null
   scopes: string | null
   connected_at: number
 }
@@ -170,7 +171,7 @@ export async function submitRegistration(
 export async function getConnections(db: D1Database, userId: string): Promise<ConnectionSummary[]> {
   const { results } = await db
     .prepare(
-      `SELECT provider, external_id, username, scopes, connected_at
+      `SELECT provider, external_id, username, detail, scopes, connected_at
          FROM connections WHERE user_id = ?1`,
     )
     .bind(userId)
@@ -185,17 +186,19 @@ export async function upsertConnection(
     provider: string
     external_id: string | null
     username: string | null
+    detail: string | null
     access_token: string | null
     scopes: string | null
   },
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO connections (user_id, provider, external_id, username, access_token, scopes, connected_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+      `INSERT INTO connections (user_id, provider, external_id, username, detail, access_token, scopes, connected_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
        ON CONFLICT(user_id, provider) DO UPDATE SET
          external_id = excluded.external_id,
          username = excluded.username,
+         detail = excluded.detail,
          access_token = excluded.access_token,
          scopes = excluded.scopes,
          connected_at = excluded.connected_at`,
@@ -205,6 +208,7 @@ export async function upsertConnection(
       row.provider,
       row.external_id,
       row.username,
+      row.detail,
       row.access_token,
       row.scopes,
       Date.now(),

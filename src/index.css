@@ -54,7 +54,11 @@
   min-height: 100svh;
 }
 
-html {
+/* Flower-field navy is the app's true backdrop (the WebGL canvas sits on it).
+   Use :root — not html — so it beats the `:root { background: var(--bg) }`
+   theme default above (a plain `html` selector loses the specificity fight and
+   the base paints white, which flashes when navigating in from /2026). */
+:root {
   background: #05060e;
 }
 

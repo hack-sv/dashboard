@@ -13,6 +13,51 @@
   width: auto;
 }
 
+/* Closed control (default): a select-style white box showing the chosen set or
+   a placeholder. Same flat vocabulary as `.seg-field` / `.field`. */
+.pronouns-select {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0 12px 0 16px;
+  border: none;
+  border-radius: 0;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.pronouns-select .pronouns-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pronouns-select .pronouns-select-value.is-placeholder {
+  color: #9aa0aa;
+  font-weight: 400;
+}
+.pronouns-select svg {
+  flex: none;
+  transition: transform 0.15s ease;
+}
+.pronouns-select[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+/* "Other…" mode: the segmented editor plus the disclosure button. */
+.pronouns-custom {
+  position: relative;
+}
+
 /* Leave room at the right edge for the menu button so a long "theirs" never
    slides under it. */
 .seg-field--pronouns {
@@ -21,9 +66,16 @@
 .field .seg-field--pronouns {
   padding-right: 44px;
 }
-/* Pronoun words are text, not digits: keep a normal insertion caret. */
+/* Pronoun words are text, not digits: keep a normal insertion caret. Each
+   segment carries a fill-in-the-blank underline, so an empty editor reads as
+   `___ / ___ / ___` and typing writes onto the line. */
 .seg-field--pronouns .seg-field-seg {
   caret-color: auto;
+  border-bottom: 2px solid #000;
+}
+/* The focused segment inverts to a black box — flip the line to stay visible. */
+.seg-field--pronouns .seg-field-seg:focus {
+  border-bottom-color: #ffffff;
 }
 
 /* The disclosure button, sitting inside the white box at the right edge. */
@@ -52,7 +104,8 @@
   transform: rotate(180deg);
 }
 @media (prefers-reduced-motion: reduce) {
-  .pronouns-menu-btn svg {
+  .pronouns-menu-btn svg,
+  .pronouns-select svg {
     transition: none;
   }
 }

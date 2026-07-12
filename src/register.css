@@ -20,17 +20,6 @@
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
 }
 
-/* A hint tucked directly under a field: left-aligned, tighter than a standalone hint. */
-.reg-sub {
-  margin: -6px 2px 4px;
-  text-align: left;
-  font-size: 13px;
-  opacity: 0.85;
-}
-.reg-counter {
-  text-align: right;
-}
-
 /* Primary action — the same flat white box as .google-btn / .field, with a label. */
 .reg-btn {
   box-sizing: border-box;
@@ -48,12 +37,20 @@
   color: #000;
   font-family: 'Nunito Sans', system-ui, sans-serif;
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 .reg-btn:disabled {
   cursor: default;
+}
+/* Fade only a genuinely-unavailable action (e.g. over the character limit),
+   never the busy state — while submitting, the arrow becomes a spinner at full
+   opacity so it reads as "working", not "greyed out". See DESIGN.md. */
+.reg-btn:disabled:not(.is-busy) {
   opacity: 0.7;
+}
+.reg-btn.is-busy {
+  cursor: wait;
 }
 .reg-btn.shake {
   animation: auth-shake 0.4s ease-in-out both;
@@ -90,9 +87,51 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.reg-check {
-  color: #1a7f37;
+/* Groups a connect button with its optional helper note as one stack item. */
+.connect-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* "Optional" marker on a connect button, right-aligned and sized to match the
+   button label. Blue — the one accent color on these flat white rows. */
+.field-tag {
+  margin-left: auto;
   flex: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+/* Left-aligned helper line under a connect button (sits on the wave bg). */
+.reg-note {
+  margin: 0;
+  padding: 0 2px;
+  text-align: left;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.9;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* Legal footer at the bottom of each registration step. */
+.reg-legal {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  text-align: left;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.9;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+.reg-legal a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .reg-x {
   display: flex;
@@ -106,7 +145,7 @@
   flex: none;
 }
 .reg-x:hover {
-  color: #000;
+  color: #b91c1c;
 }
 
 /* A field and its label, paired: tighter gap below the label than the card's

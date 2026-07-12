@@ -174,12 +174,21 @@ app.post('/auth/registration/submit', async (c) => {
   if (!user) return c.json({ error: 'not authenticated' }, 401)
 
   const profile = await getProfile(c.env.DB, user.email)
-  // A name is the one hard requirement — everything else is optional.
+  // Hard requirements to submit: a name (step 1), a connected GitHub, and a
+  // filled-in "what have you been building" box. Dietary is answer-if-applicable;
+  // Hackatime is optional. Mirrors the client-side checks in Register.tsx.
   if (!profile || !(profile.legal_name || profile.preferred_name)) {
     return c.json({ error: 'please fill in your name before submitting' }, 400)
   }
   const existing = await getRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
   if (!existing) return c.json({ error: 'no registration to submit' }, 400)
+  if (!existing.freeform?.trim()) {
+    return c.json({ error: 'tell us a bit about what you’ve been building' }, 400)
+  }
+  const connections = await getConnections(c.env.DB, profile.id)
+  if (!connections.some((conn) => conn.provider === 'github')) {
+    return c.json({ error: 'please connect GitHub before submitting' }, 400)
+  }
 
   const registration = await submitRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
   return c.json({ registration })
@@ -203,8 +212,20 @@ type ProviderCfg = {
     clientSecret: string
   }) => Record<string, string>
   tokenHeaders?: Record<string, string>
-  // Fetch the connected identity with the access token.
-  fetchIdentity: (token: string) => Promise<{ external_id: string | null; username: string | null }>
+  // Fetch the connected identity with the access token. `detail` is a short,
+  // human-readable stat shown next to the username (e.g. "73 repositories",
+  // "43 hr 48 min") — captured at connect time; the icon conveys the service.
+  fetchIdentity: (
+    token: string,
+  ) => Promise<{ external_id: string | null; username: string | null; detail: string | null }>
+}
+
+/** Seconds -> "43hr 48min" (or "48min" under an hour). */
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}hr ${m}min` : `${m}min`
 }
 
 const PROVIDERS: Record<'github' | 'hackatime', ProviderCfg> = {
@@ -230,8 +251,15 @@ const PROVIDERS: Record<'github' | 'hackatime', ProviderCfg> = {
         },
       })
       if (!res.ok) throw new Error(`github /user ${res.status}`)
-      const u = (await res.json()) as { id: number; login: string }
-      return { external_id: String(u.id), username: u.login }
+      const u = (await res.json()) as {
+        id: number
+        login: string
+        public_repos?: number
+        owned_private_repos?: number
+      }
+      const repos = (u.public_repos ?? 0) + (u.owned_private_repos ?? 0)
+      const detail = `${repos} ${repos === 1 ? 'repository' : 'repositories'}`
+      return { external_id: String(u.id), username: u.login, detail }
     },
   },
   hackatime: {
@@ -248,12 +276,28 @@ const PROVIDERS: Record<'github' | 'hackatime', ProviderCfg> = {
       grant_type: 'authorization_code',
     }),
     fetchIdentity: async (token) => {
+      const headers = { Authorization: `Bearer ${token}` }
       const res = await fetch('https://hackatime.hackclub.com/api/v1/authenticated/me', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
       })
       if (!res.ok) throw new Error(`hackatime /me ${res.status}`)
       const u = (await res.json()) as { id: number; github_username?: string | null }
-      return { external_id: String(u.id), username: u.github_username ?? null }
+
+      // All-time coding total (no date range) for the "43 hr 48 min" stat.
+      // Non-fatal: a connection is still worth keeping without the number.
+      let detail: string | null = null
+      try {
+        const hoursRes = await fetch('https://hackatime.hackclub.com/api/v1/authenticated/hours', {
+          headers,
+        })
+        if (hoursRes.ok) {
+          const { total_seconds } = (await hoursRes.json()) as { total_seconds?: number }
+          if (typeof total_seconds === 'number') detail = formatDuration(total_seconds)
+        }
+      } catch (e) {
+        console.error('[connect/hackatime] hours', e)
+      }
+      return { external_id: String(u.id), username: u.github_username ?? null, detail }
     },
   },
 }
@@ -339,6 +383,7 @@ app.get('/auth/connect/:provider/callback', async (c) => {
       provider,
       external_id: identity.external_id,
       username: identity.username,
+      detail: identity.detail,
       access_token: await encryptToken(c.env.TOKEN_ENC_KEY, tokenJson.access_token),
       scopes: tokenJson.scope ?? cfg.scope,
     })

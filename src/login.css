@@ -85,6 +85,8 @@
   cursor: text;
 }
 .field .lead-icon {
+  display: flex;
+  align-items: center;
   color: #000000;
   flex: none;
 }

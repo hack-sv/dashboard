@@ -79,6 +79,10 @@ export interface SegmentedFieldProps {
   /** Pasted (or mobile-committed) text, e.g. "2010-01-22". `activeIndex` is the
    *  segment the caret was in — useful when the paste is a single token. */
   onPasteText?: (text: string, nav: SegmentNav, activeIndex: number) => void
+  /** When false, clicks on the box's gaps (padding, separators) are left alone
+   *  instead of focusing the nearest segment — the owner handles them (e.g.
+   *  PronounsField opens its menu). Default true. */
+  gapFocus?: boolean
   className?: string
 }
 
@@ -89,6 +93,7 @@ export function SegmentedField({
   separator = '/',
   advanceKeys,
   onPasteText,
+  gapFocus = true,
   className,
 }: SegmentedFieldProps) {
   const refs = useRef<(HTMLInputElement | null)[]>([])
@@ -180,6 +185,7 @@ export function SegmentedField({
    *  segment, like native date inputs. */
   function handleMouseDown(e: MouseEvent) {
     if (e.target instanceof HTMLInputElement) return
+    if (!gapFocus) return // owner handles gap presses (e.g. opens a menu)
     e.preventDefault()
     let best: HTMLInputElement | null = null
     let bestDist = Infinity

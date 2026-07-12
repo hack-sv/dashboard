@@ -40,6 +40,7 @@ export type Connection = {
   provider: string
   external_id: string | null
   username: string | null
+  detail: string | null
   scopes: string | null
   connected_at: number
 }

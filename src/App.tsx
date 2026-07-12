@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
-import WaveBackground from './WaveBackground'
+import FlowerBackground from './FlowerBackground'
 import Login from './Login'
 import Register from './Register'
 import {
@@ -16,7 +16,7 @@ import './login.css'
 function App() {
   return (
     <SessionProvider>
-      <WaveBackground />
+      <FlowerBackground />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/register/*" element={<RegisterPage />} />

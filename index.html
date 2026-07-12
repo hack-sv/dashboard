@@ -2,6 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Zero-gap handoff: paint the last flower frame handed over from the
+      // previous same-origin page (see FlowerBackground) instantly as the page
+      // background, so there's no visual gap while this page's WebGL canvas
+      // boots. Cleared by FlowerBackground once its live canvas draws.
+      try {
+        var __flowerFrame = sessionStorage.getItem('hacksv:flower-frame')
+        if (__flowerFrame) {
+          var __s = document.documentElement.style
+          __s.backgroundImage = 'url("' + __flowerFrame + '")'
+          __s.backgroundSize = 'cover'
+          __s.backgroundPosition = 'center'
+          __s.imageRendering = 'pixelated'
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -11,6 +27,14 @@
       rel="stylesheet"
     />
     <title>hack.sv dashboard</title>
+    <style>
+      /* Paint the flower-field navy immediately, before the stylesheet/JS/canvas
+         load, so navigating in from /2026 never flashes white. Matches the WebGL
+         canvas clear color and the /2026 page background. */
+      html {
+        background: #05060e;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

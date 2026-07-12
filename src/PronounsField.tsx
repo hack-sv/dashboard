@@ -4,34 +4,31 @@ import './segmented.css'
 import './PronounsField.css'
 
 /**
- * PronounsField — pronouns as a three-segment control
- * (subjective / objective / possessive, e.g. `they / them / theirs`).
+ * PronounsField — a plain dropdown for the common pronoun sets, with an
+ * "Other…" door for everything else.
  *
- * Standardized-by-default but never locked: the 99% pick one of the common sets
- * from the quick-select menu in a single tap, while anyone can type a custom
- * value straight into any segment ("let people edit if it's wrong"). Built on
- * SegmentedField, so it looks and navigates like DateField's sibling.
+ * Most people pick one of the three standard sets in a single tap. "Other…"
+ * swaps the closed control for a three-segment editor (subjective / objective /
+ * possessive) where any set — mixed (he/them), neopronoun (ze/zir), whatever —
+ * can be typed straight in. Standardized by default, never locked; starts blank
+ * so no single set is presumed.
  *
- * `value` is the canonical `"a/b/c"` string (or '' when empty). 2-part input is
- * accepted gracefully — the third segment simply stays empty, and only the
- * filled leading segments are emitted.
+ * `value` is the canonical `"a/b/c"` string (or '' when empty). 2-part custom
+ * input is accepted — the trailing segment simply stays empty.
  */
 
+// Common-first. Each is a full three-part set so a returning user sees the whole
+// thing, not just "he/him".
+const PRESETS = ['he/him/his', 'she/her/hers', 'they/them/theirs'] as const
+const OTHER = '__other__'
+const OPTIONS = [...PRESETS, OTHER] as const
+
 const SEG_LABELS = ['Subjective', 'Objective', 'Possessive'] as const
-const PLACEHOLDERS = ['they', 'them', 'theirs'] as const
+// No placeholder words: empty segments render as fill-in-the-blank underlines
+// (CSS), so the editor doesn't presume any set.
+const PLACEHOLDERS = ['', '', ''] as const
 
-// The standardized sets, common first. `he/they` and `she/they` are the two
-// widely-used combined forms; they fill the first two segments and leave the
-// third empty (emitted as a 2-part value).
-const PRESETS: readonly string[] = [
-  'she/her/hers',
-  'he/him/his',
-  'they/them/theirs',
-  'she/they',
-  'he/they',
-]
-
-// Letters plus the marks that show up in pronouns (e.g. curly apostrophes,
+// Letters plus the marks that show up in pronouns (curly apostrophes,
 // hyphenated neopronouns). Spaces/digits/slashes are handled by the primitive.
 const ALLOWED = /[a-zA-Z'’-]/
 
@@ -48,6 +45,13 @@ function toValue(segs: Segs): string {
   while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop()
   return parts.join('/')
 }
+
+/** "he/him/his" → "he / him / his" for the closed control. */
+function pretty(value: string): string {
+  return parseValue(value).filter(Boolean).join(' / ')
+}
+
+const isPreset = (v: string): boolean => (PRESETS as readonly string[]).includes(v)
 
 function ChevronDown() {
   return (
@@ -89,6 +93,9 @@ export interface PronounsFieldProps {
 }
 
 export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
+  // "Other…" mode: a non-empty value that isn't one of the three standard sets
+  // must have come through the custom editor, so open in that mode.
+  const [custom, setCustom] = useState(() => value !== '' && !isPreset(value))
   const [segs, setSegs] = useState<Segs>(() => parseValue(value))
   const [prevValue, setPrevValue] = useState(value)
   const [open, setOpen] = useState(false)
@@ -97,11 +104,16 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  // Set when we switch into custom mode from the menu, so the effect below
+  // focuses the editor once it renders (but not on an initial custom mount).
+  const focusEditor = useRef(false)
 
   // Controlled sync: adopt an external `value` unless it's the echo of our own.
   if (value !== prevValue) {
     setPrevValue(value)
     if (value !== toValue(segs)) setSegs(parseValue(value))
+    if (value !== '' && !isPreset(value)) setCustom(true)
+    else if (isPreset(value)) setCustom(false)
   }
 
   function apply(next: Segs) {
@@ -141,13 +153,12 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
     nav.focus(0)
   }
 
-  // --- Quick-select menu -------------------------------------------------
+  // --- Dropdown menu -----------------------------------------------------
 
-  const currentValue = toValue(segs)
+  const selectedIndex = custom ? OPTIONS.indexOf(OTHER) : PRESETS.indexOf(value as (typeof PRESETS)[number])
 
   function openMenu() {
-    const sel = PRESETS.indexOf(currentValue)
-    setActiveIndex(sel >= 0 ? sel : 0)
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
     setOpen(true)
   }
 
@@ -156,12 +167,83 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
     if (focusBtn) btnRef.current?.focus()
   }
 
-  function choose(preset: string) {
-    apply(parseValue(preset))
+  function choose(index: number) {
+    const opt = OPTIONS[index]
     setOpen(false)
-    // Return focus to the box so a custom tweak is one keystroke away.
-    wrapperRef.current?.querySelector('input')?.focus()
+    if (opt === OTHER) {
+      focusEditor.current = true
+      setCustom(true)
+      return
+    }
+    setCustom(false)
+    apply(parseValue(opt))
+    btnRef.current?.focus()
   }
+
+  /** Which option (if any) sits under a viewport point — for drag-to-select. */
+  function optionIndexAt(x: number, y: number): number {
+    for (let i = 0; i < optionRefs.current.length; i++) {
+      const el = optionRefs.current[i]
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i
+    }
+    return -1
+  }
+
+  // Press-drag-release: a press anywhere on the control (except the editor's
+  // own inputs) opens the menu; sliding highlights options and releasing over
+  // one selects it — one gesture, and touch-friendly. A plain tap just opens.
+  function beginPointer(e: React.PointerEvent) {
+    if (e.button !== 0) return // primary button / touch only
+    if (e.target instanceof Element) {
+      // Presses on the open menu are the options' own to handle (click / drag
+      // release); presses on the editor's inputs are for typing.
+      if (e.target.closest('.pronouns-menu') || e.target.closest('.seg-field-seg')) return
+    }
+    e.preventDefault()
+    if (open) {
+      setOpen(false)
+      return
+    }
+    openMenu()
+    let everOnOption = false
+    const ac = new AbortController()
+    const onMove = (ev: PointerEvent) => {
+      const i = optionIndexAt(ev.clientX, ev.clientY)
+      if (i >= 0) {
+        everOnOption = true
+        setActiveIndex(i)
+      }
+    }
+    const onUp = (ev: PointerEvent) => {
+      ac.abort()
+      const i = optionIndexAt(ev.clientX, ev.clientY)
+      if (i >= 0) choose(i)
+      else if (everOnOption) setOpen(false) // dragged off the list → cancel
+      // otherwise a plain tap: leave the menu open to click an option next
+    }
+    document.addEventListener('pointermove', onMove, { signal: ac.signal })
+    document.addEventListener('pointerup', onUp, { signal: ac.signal })
+    document.addEventListener('pointercancel', () => ac.abort(), { signal: ac.signal })
+  }
+
+  // Keyboard on the closed trigger: open the menu (focus moves onto an option).
+  function onTriggerKeyDown(e: React.KeyboardEvent) {
+    if (open) return
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      openMenu()
+    }
+  }
+
+  // After switching into custom mode from the menu, focus the first segment.
+  useEffect(() => {
+    if (custom && focusEditor.current) {
+      focusEditor.current = false
+      wrapperRef.current?.querySelector<HTMLInputElement>('.seg-field-seg')?.focus()
+    }
+  }, [custom])
 
   // Move roving focus onto the active option whenever the menu opens or moves.
   useEffect(() => {
@@ -182,11 +264,11 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setActiveIndex((i) => (i + 1) % PRESETS.length)
+        setActiveIndex((i) => (i + 1) % OPTIONS.length)
         break
       case 'ArrowUp':
         e.preventDefault()
-        setActiveIndex((i) => (i - 1 + PRESETS.length) % PRESETS.length)
+        setActiveIndex((i) => (i - 1 + OPTIONS.length) % OPTIONS.length)
         break
       case 'Home':
         e.preventDefault()
@@ -194,12 +276,12 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
         break
       case 'End':
         e.preventDefault()
-        setActiveIndex(PRESETS.length - 1)
+        setActiveIndex(OPTIONS.length - 1)
         break
       case 'Enter':
       case ' ':
         e.preventDefault()
-        choose(PRESETS[activeIndex])
+        choose(activeIndex)
         break
       case 'Escape':
         e.preventDefault()
@@ -228,55 +310,75 @@ export function PronounsField({ value, onChange, id }: PronounsFieldProps) {
   })
 
   return (
-    <div className="pronouns-field" ref={wrapperRef}>
-      <SegmentedField
-        segments={segments}
-        id={id}
-        label="Pronouns"
-        separator="/"
-        advanceKeys={['/', ' ']}
-        onPasteText={handlePaste}
-        className="seg-field--pronouns"
-      />
-      <button
-        ref={btnRef}
-        type="button"
-        className="pronouns-menu-btn"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="Choose a standard pronoun set"
-        onClick={() => (open ? closeMenu() : openMenu())}
-        onKeyDown={(e) => {
-          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-            e.preventDefault()
-            openMenu()
-          }
-        }}
-      >
-        <ChevronDown />
-      </button>
+    <div className="pronouns-field" ref={wrapperRef} onPointerDown={beginPointer}>
+      {custom ? (
+        <div className="pronouns-custom">
+          <SegmentedField
+            segments={segments}
+            id={id}
+            label="Pronouns"
+            separator="/"
+            advanceKeys={['/', ' ']}
+            onPasteText={handlePaste}
+            gapFocus={false}
+            className="seg-field--pronouns"
+          />
+          <button
+            ref={btnRef}
+            type="button"
+            className="pronouns-menu-btn"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-label="Choose a pronoun set"
+            onKeyDown={onTriggerKeyDown}
+          >
+            <ChevronDown />
+          </button>
+        </div>
+      ) : (
+        <button
+          ref={btnRef}
+          type="button"
+          id={id}
+          className="pronouns-select"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onKeyDown={onTriggerKeyDown}
+        >
+          <span className={`pronouns-select-value${value ? '' : ' is-placeholder'}`}>
+            {value ? pretty(value) : 'Select pronouns'}
+          </span>
+          <ChevronDown />
+        </button>
+      )}
       {open && (
-        <ul className="pronouns-menu" role="listbox" aria-label="Standard pronoun sets">
-          {PRESETS.map((preset, i) => (
-            <li key={preset} role="presentation">
-              <button
-                ref={(el) => {
-                  optionRefs.current[i] = el
-                }}
-                type="button"
-                role="option"
-                aria-selected={preset === currentValue}
-                tabIndex={i === activeIndex ? 0 : -1}
-                className={`pronouns-option${i === activeIndex ? ' is-active' : ''}`}
-                onClick={() => choose(preset)}
-                onMouseMove={() => setActiveIndex(i)}
-                onKeyDown={onMenuKeyDown}
-              >
-                <span>{preset}</span>
-                <CheckMark />
-              </button>
-            </li>
-          ))}
+        <ul className="pronouns-menu" role="listbox" aria-label="Pronoun sets">
+          {OPTIONS.map((opt, i) => {
+            const isOther = opt === OTHER
+            const selected = isOther ? custom : !custom && opt === value
+            return (
+              <li key={opt} role="presentation">
+                <button
+                  ref={(el) => {
+                    optionRefs.current[i] = el
+                  }}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  tabIndex={i === activeIndex ? 0 : -1}
+                  className={`pronouns-option${i === activeIndex ? ' is-active' : ''}${
+                    isOther ? ' pronouns-option--other' : ''
+                  }`}
+                  onClick={() => choose(i)}
+                  onMouseMove={() => setActiveIndex(i)}
+                  onKeyDown={onMenuKeyDown}
+                >
+                  <span>{isOther ? 'Other…' : pretty(opt)}</span>
+                  <CheckMark />
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
