@@ -143,14 +143,8 @@ function PersonalStep() {
         disabled={busy}
         onAnimationEnd={() => setShaking(false)}
       >
-        {busy ? (
-          <Loader2 size={22} className="spin" />
-        ) : (
-          <>
-            Continue
-            <Arrow />
-          </>
-        )}
+        <span>Continue</span>
+        {busy ? <Loader2 size={22} className="spin" /> : <Arrow />}
       </button>
       {error && <p className="hint error">{error}</p>}
     </form>
@@ -278,14 +272,8 @@ function ApplicationStep() {
       </FieldGroup>
 
       <button className="reg-btn" onClick={submit} disabled={busy || over}>
-        {busy ? (
-          <Loader2 size={22} className="spin" />
-        ) : (
-          <>
-            Submit application
-            <Arrow />
-          </>
-        )}
+        <span>Submit application</span>
+        {busy ? <Loader2 size={22} className="spin" /> : <Arrow />}
       </button>
       {error && <p className="hint error">{error}</p>}
       <p className="hint">

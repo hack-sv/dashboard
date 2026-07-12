@@ -15,7 +15,7 @@
   color: #fff;
   font-family: 'Nunito Sans', system-ui, sans-serif;
   font-weight: 900;
-  font-size: 26px;
+  font-size: 28px;
   letter-spacing: -0.02em;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
 }
@@ -39,15 +39,15 @@
   margin-top: 4px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 0 16px;
+  padding: 0 20px;
   border: none;
   border-radius: 0;
   background: #fff;
   color: #000;
   font-family: 'Nunito Sans', system-ui, sans-serif;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -121,7 +121,18 @@
   margin-left: 2px;
   color: #fff;
   font-family: 'Nunito Sans', system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* Slightly larger, slightly heavier field text than the login screen's .field
+   default, so the registration form reads a touch bigger and bolder. */
+.reg-card .field input,
+.reg-card .field textarea {
+  font-size: 17px;
+  font-weight: 500;
+}
+.reg-card .field-btn-label {
+  font-size: 17px;
 }
