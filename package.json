@@ -14,13 +14,13 @@
   "dependencies": {
     "@workos-inc/node": "10.13.0",
     "hono": "4.13.5",
-    "lucide-react": "1.39.0",
+    "lucide-react": "1.41.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.3",
+    "@cloudflare/vite-plugin": "1.54.4",
     "@cloudflare/workers-types": "5.20260902.1",
     "@types/node": "^24.13.2",
     "@types/react": "19.2.18",
@@ -29,7 +29,7 @@
     "oxlint": "1.81.0",
     "typescript": "~6.0.2",
     "vite": "8.2.2",
-    "wrangler": "4.128.0"
+    "wrangler": "4.129.0"
   },
   "packageManager": "pnpm@9.15.9+sha512.68046141893c66fad01c079231128e9afb89ef87e2691d69e4d40eee228988295fd4682181bae55b58418c3a253bde65a505ec7c5f9403ece5cc3cd37dcf2531"
 }
