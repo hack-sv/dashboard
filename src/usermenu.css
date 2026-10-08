@@ -1,0 +1,115 @@
+/* Account menu — lives in the top-right of .site-header. Deliberately spare:
+   black-on-white, Nunito Sans, no gray, no borders, no rounded corners. */
+
+.user-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The trigger is just the white glyph — no box, no circle, no background. */
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  line-height: 0;
+  filter: drop-shadow(0 1px 10px rgba(0, 0, 0, 0.35));
+}
+
+/* Flat white panel dropped under the trigger, right-aligned. */
+.user-menu-pop {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 20;
+  width: 240px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px;
+  gap: 12px;
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  color: #000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+/* Profile header: small square avatar on the left, name + email stacked right. */
+.user-menu-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Small square profile picture — no rounding. */
+.user-menu-avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 0;
+  display: block;
+}
+.user-menu-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #4c2fb3;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Text column — must be allowed to shrink so the children can ellipsize. */
+.user-menu-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-menu-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-menu-email {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Icon + label rows. Black text, no fill, left-aligned. */
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #000;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}

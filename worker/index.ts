@@ -174,11 +174,18 @@ app.post('/auth/registration/submit', async (c) => {
   if (!user) return c.json({ error: 'not authenticated' }, 401)
 
   const profile = await getProfile(c.env.DB, user.email)
-  // Hard requirements to submit: a name (step 1), a connected GitHub, and a
-  // filled-in "what have you been building" box. Dietary is answer-if-applicable;
-  // Hackatime is optional. Mirrors the client-side checks in Register.tsx.
-  if (!profile || !(profile.legal_name || profile.preferred_name)) {
-    return c.json({ error: 'please fill in your name before submitting' }, 400)
+  // Hard requirements to submit: every personal field (step 1), a connected
+  // GitHub, and a filled-in "what have you been building" box. Dietary is
+  // answer-if-applicable; Hackatime is optional. Mirrors the client-side checks
+  // in Register.tsx.
+  if (
+    !profile ||
+    !profile.legal_name ||
+    !profile.preferred_name ||
+    !profile.pronouns ||
+    !profile.dob
+  ) {
+    return c.json({ error: 'please fill in every field on the first step before submitting' }, 400)
   }
   const existing = await getRegistration(c.env.DB, profile.id, CURRENT_EVENT.slug)
   if (!existing) return c.json({ error: 'no registration to submit' }, 400)

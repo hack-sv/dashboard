@@ -18,6 +18,9 @@
 
 /* hack.sv wordmark, top of the auth page → back to the 2026 site */
 .site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: clamp(20px, 4vh, 36px) clamp(24px, 4vw, 48px);
 }
 .wordmark {

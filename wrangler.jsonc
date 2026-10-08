@@ -5,7 +5,7 @@
   "compatibility_date": "2026-07-09",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./worker/index.ts",
-  // Reserve these two path prefixes on the hack.sv zone. Everything the app
+  // Reserve these path prefixes on the hack.sv zone. Everything the app
   // needs (SPA pages, built assets, and the API) lives under them.
   //
   // Trailing-wildcard patterns are REQUIRED: Cloudflare route matching includes
@@ -15,7 +15,8 @@
   // so the apex site must not use those prefixes for its own pages.
   "routes": [
     { "pattern": "hack.sv/auth*", "zone_name": "hack.sv" },
-    { "pattern": "hack.sv/dashboard*", "zone_name": "hack.sv" }
+    { "pattern": "hack.sv/dashboard*", "zone_name": "hack.sv" },
+    { "pattern": "hack.sv/register*", "zone_name": "hack.sv" }
   ],
   "assets": {
     // Serve the built React SPA. Anything that isn't a real asset falls back

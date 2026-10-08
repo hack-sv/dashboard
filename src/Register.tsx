@@ -5,6 +5,7 @@ import { API_BASE } from './api'
 import { useSession, type Connection } from './session'
 import { DateField } from './DateField'
 import { PronounsField } from './PronounsField'
+import UserMenu from './UserMenu'
 import './register.css'
 
 // Generous cap on the free-form field — high enough that no genuine answer hits
@@ -87,6 +88,7 @@ export default function Register() {
         <a className="wordmark" href="/2026">
           hack.sv
         </a>
+        <UserMenu />
       </header>
       <div className="screen-center">
         <Routes>
@@ -127,8 +129,10 @@ function PersonalStep() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (busy) return
-    if (!legalName.trim() && !preferredName.trim()) {
+    // Every field on this step is required.
+    if (!legalName.trim() || !preferredName.trim() || !pronouns.trim() || !dob.trim()) {
       if (!shaking) setShaking(true)
+      setError('Please fill in every field.')
       return
     }
     setBusy(true)
