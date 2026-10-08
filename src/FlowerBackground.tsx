@@ -784,7 +784,12 @@ void main() {
 
     const onResize = () => {
       resize()
-      scheduleRender()
+      if (!running) return
+      cancelAnimationFrame(rafId)
+      clearTimeout(timeoutId)
+      rafId = 0
+      timeoutId = 0
+      render()
     }
     const onVisibility = () => {
       running = !document.hidden
