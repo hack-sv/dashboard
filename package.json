@@ -14,7 +14,7 @@
   "dependencies": {
     "@workos-inc/node": "10.14.0",
     "hono": "4.13.13",
-    "lucide-react": "1.50.0",
+    "lucide-react": "1.52.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router-dom": "7.18.4"
