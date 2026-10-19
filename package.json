@@ -12,7 +12,7 @@
     "deploy": "npm run build && wrangler deploy -c dist/hacksv_dashboard/wrangler.json"
   },
   "dependencies": {
-    "@workos-inc/node": "10.14.0",
+    "@workos-inc/node": "11.0.0",
     "hono": "4.13.13",
     "lucide-react": "1.55.0",
     "react": "19.3.0",
