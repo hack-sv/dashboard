@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@workos-inc/node':
-        specifier: 10.14.0
-        version: 10.14.0
+        specifier: 11.0.0
+        version: 11.0.0
       hono:
         specifier: 4.13.13
         version: 4.13.13
@@ -685,8 +685,8 @@ packages:
       oxc-transform-react:
         optional: true
 
-  '@workos-inc/node@10.14.0':
-    resolution: {integrity: sha512-SnY9OHTzTyOmgJQj9+/6x116m+d+zJoQw5e8teNWKUuGe8FOKngVdBXRvZgdFxaL+3UfQbMlp95V67t43VYOWQ==}
+  '@workos-inc/node@11.0.0':
+    resolution: {integrity: sha512-swUT6CbkuVQXMOtUpI70LZ8usjSg8OXcKMjKdoYLeqCApRI0Oo97l+nZ0lKzZ5GxjxgcVZGGVK025h7z9WyCJg==}
     engines: {node: '>=22.11.0'}
 
   blake3-wasm@2.1.5:
@@ -1390,7 +1390,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.3.4(@types/node@24.19.2)(esbuild@0.28.2)
 
-  '@workos-inc/node@10.14.0': {}
+  '@workos-inc/node@11.0.0': {}
 
   blake3-wasm@2.1.5: {}
 
